@@ -1,0 +1,42 @@
+//@version=5
+strategy("Dynamic Trailing Stop with MACD and RSI Filter", shorttitle="Dyn Trailing MACD RSI")
+
+// Parameters
+initialStopPercentage = input(1.0, "Initial Stop Percentage")
+stopDistancePercentage = input(1.0, "Stop Distance Percentage")
+gridStepPercentage = input(0.5, "Grid Step Percentage")
+rsiPeriod = input(14, "RSI Period")
+macdFastLength = input(12, "MACD Fast Length")
+macdSlowLength = input(26, "MACD Slow Length")
+macdSignalSmoothing = input(9, "MACD Signal Smoothing")
+
+// Calculate RSI
+rsiValue = ta.rsi(close, rsiPeriod)
+
+// Calculate MACD
+[macdLine, signalLine, _] = ta.macd(close, macdFastLength, macdSlowLength, macdSignalSmoothing)
+
+// Calculate the current stop percentage
+stopPercentage = initialStopPercentage + (gridStepPercentage * floor((strategy.netprofit - strategy.initial_capital) / strategy.initial_capital))
+
+// Calculate the current stop distance
+stopDistance = close * (stopPercentage / 100)
+
+// Trail the stop loss
+stopLevel = ta.highest(close, rsiPeriod)
+strategy.exit("Trailing Stop", "Long", stop=stopLevel, trail_price=stopDistance, trail_offset=stopDistance)
+
+// Define MACD conditions for overbought/oversold positions
+macdOverbought = ta.crossover(macdLine, signalLine) and rsiValue > 70
+macdOversold = ta.crossunder(macdLine, signalLine) and rsiValue < 30
+
+// Enter long position when MACD is oversold and RSI value is below 30
+strategy.entry("Long", strategy.long, when=macdOversold)
+
+// Exit long position when MACD becomes overbought or trailing stop is hit
+strategy.close("Long", when=macdOverbought or stopLevel)
+
+// Plotting RSI and MACD
+plot(rsiValue, color=color.blue, title="RSI")
+plot(macdLine - signalLine, color=color.red, title="MACD")
+
