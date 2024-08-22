@@ -1,0 +1,51 @@
+//@version=5
+strategy("Grid Trading Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Parameters
+grid_interval = input.float(10, title="Grid Interval (%)", minval=1)
+take_profit_pct = input.float(5, title="Take Profit (%)", minval=1)
+stop_loss_pct = input.float(5, title="Stop Loss (%)", minval=1)
+reentry_threshold_pct = input.float(2, title="Reentry Threshold (%)", minval=0.5)
+
+// Variables
+var float entry_price = na
+var float grid_start_price = na
+var float last_sell_price = na
+var bool in_position = false
+var float initial_grid_price = close
+
+// Calculate price thresholds
+take_profit_level = entry_price * (1 + take_profit_pct / 100)
+stop_loss_level = entry_price * (1 - stop_loss_pct / 100)
+reentry_level = last_sell_price * (1 + reentry_threshold_pct / 100)
+grid_update_level_high = grid_start_price * (1 + grid_interval / 100)
+grid_update_level_low = grid_start_price * (1 - grid_interval / 100)
+
+// Grid price reset logic
+if (not in_position or close > grid_update_level_high or close < grid_update_level_low)
+    grid_start_price := close
+    initial_grid_price := close
+
+// Entry Logic
+if (not in_position)
+    if na(last_sell_price) or close > reentry_level
+        strategy.entry("Buy", strategy.long)
+        entry_price := close
+        in_position := true
+
+// Exit Logic
+if (in_position)
+    if close >= take_profit_level
+        strategy.exit("Take Profit", "Buy", limit=take_profit_level)
+        last_sell_price := close
+        in_position := false
+    else if close <= stop_loss_level
+        strategy.exit("Stop Loss", "Buy", stop=stop_loss_level)
+        in_position := false
+        // Wait for the price to move above reentry level before buying again
+        last_sell_price := close
+
+// Plot grid levels
+hline(grid_start_price, "Grid Start Price", color=color.yellow)
+hline(take_profit_level, "Take Profit Level", color=color.green)
+hline(stop_loss_level, "Stop Loss Level", color=color.red)
